@@ -1,37 +1,39 @@
 # -*- coding: utf-8 -*-
 
-import urllib2
-from urllib import urlencode
-from HTMLParser import HTMLParser
+import urllib.request
+#from urllib import urlencode
+from urllib.parse import urlencode
+#from HTMLParser import HTMLParser
+from html.parser import HTMLParser
 
 
-URL_PREFIX = 'cgi-bin/nagios3/status.cgi?'
+URL_PREFIX = 'cgi-bin/icinga/status.cgi?'
 GET_PARAMS = {
     'host': 'all',
     'servicestatustypes': 28,
     'hoststatustypes': 15,
 }
 HOST_NAME_EVEN = {
-    'align': 'left',
-    'valign': 'center',
-    'class': 'statusEven',
+    'align': "\\'left\\'",
+    'valign': "\\'middle\\'",
+    'class': "\\'statusEven\\'",
 }
 HOST_NAME_ODD = {
-    'align': 'left',
-    'valign': 'center',
-    'class': 'statusOdd',
+    'align': "\\'left\\'",
+    'valign': "\\'middle\\'",
+    'class': "\\'statusOdd\\'",
 }
 SERVICE_WARNING = {
-    'align': 'LEFT',
-    'valign': 'center',
-    'class': 'statusBGWARNING',
+    'align': "\\'left\\'",
+    'valign': "\\'middle\\'",
+    'class': "\\'statusBGWARNING\\'",
 }
 SERVICE_CRITICAL = {
-    'align': 'LEFT',
-    'valign': 'center',
-    'class': 'statusBGCRITICAL',
+    'align': "\\'left\\'",
+    'valign': "\\'middle\\'",
+    'class': "\\'statusBGCRITICAL\\'",
 }
-DISABLE_NOTIFY_GIF = 'ndisabled.gif'
+DISABLE_NOTIFY_GIF = '#FIXME#ndisabled.gif'
 
 
 class NagiosHTMLParser(HTMLParser):
@@ -44,17 +46,19 @@ class NagiosHTMLParser(HTMLParser):
         self.status = None
 
     def handle_starttag(self, tag, attrs):
+        #import pdb; pdb.set_trace()
         props = dict(attrs)
         if tag == 'td':
             if props == HOST_NAME_EVEN or props == HOST_NAME_ODD:
                 self.get_host_name = True
             if props == SERVICE_WARNING or props == SERVICE_CRITICAL:
-                self.status = props['class'][8:]
+                self.status = props['class'][10:]
                 self.get_service_name = True
         if tag == 'img' and 'src' in props:
             if DISABLE_NOTIFY_GIF in props['src']:
-                self.problems[self.host_name][self.service_name][
-                'notify'] = False
+                if hasattr(self, 'host_name') and hasattr(self, 'service_name'):
+                    self.problems[self.host_name][self.service_name][
+                    'notify'] = False
 
     def handle_data(self, data):
         if self.get_host_name:
@@ -76,13 +80,15 @@ def get_new_nagios_status(url, user, passwd):
         url += '/'
     full_url = url + URL_PREFIX
     full_url = full_url + urlencode(GET_PARAMS)
-    auth_handler = urllib2.HTTPBasicAuthHandler()
-    auth_handler.add_password('Nagios Access', full_url, user, passwd)
-    opener = urllib2.build_opener(auth_handler)
-    urllib2.install_opener(opener)
-    response = urllib2.urlopen(full_url).read()
+    auth_handler = urllib.request.HTTPBasicAuthHandler()
+    password_mgr = urllib.request.HTTPPasswordMgrWithDefaultRealm()
+    password_mgr.add_password(None, full_url, user, passwd)
+    auth_handler = urllib.request.HTTPBasicAuthHandler(password_mgr)
+    opener = urllib.request.build_opener(auth_handler)
+    urllib.request.install_opener(opener)
+    response = urllib.request.urlopen(full_url).read()
 
     parser = NagiosHTMLParser()
-    parser.feed(response)
+    parser.feed(str(response))
 
     return parser.problems

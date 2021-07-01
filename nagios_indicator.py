@@ -1,15 +1,30 @@
 # -*- coding: utf-8 -*-
 
-import pygtk
-pygtk.require('2.0')
-import gtk
-import gobject
-import appindicator
-import pynotify
-import ConfigParser
+import six
+import re
+#import pygtk
+#pygtk.require('2.0')
+
+import urllib.request
+import gi
+gi.require_version('Gtk', '3.0')
+from gi.repository import Gtk as gtk
+gi.require_version('AppIndicator3', '0.1')
+from gi.repository import AppIndicator3
+gi.require_version('Notify', '0.7')
+from gi.repository import Notify
+from gi.repository import GObject
+from gi.repository import GLib
+
+#import gtk
+#import gobject
+#import appindicator
+#import pynotify
+import notify2
+import configparser as ConfigParser
 import sys
 import os
-from urllib2 import URLError, HTTPError
+from urllib.error import URLError, HTTPError
 from nagios_checker import get_new_nagios_status
 
 
@@ -38,11 +53,10 @@ class NagiosApplet(object):
     """
 
     def __init__(self):
-        pynotify.init("Init")
-        self.ind = appindicator.Indicator("nagios-checker",
-            NAGIOS_ICON,
-            appindicator.CATEGORY_APPLICATION_STATUS,
-            ICONS_PATH)
+        notify2.init("Init")
+        self.ind = AppIndicator3.Indicator.new("nagios-checker",
+            ICONS_PATH + '/' + NAGIOS_ICON + '.png',
+            AppIndicator3.IndicatorCategory.APPLICATION_STATUS)
         self.check_interval = CHECK_INTERVAL
 
     def run(self):
@@ -58,22 +72,22 @@ class NagiosApplet(object):
         self.nagios_status = {}
         self.get_config()
         self.check_status()
-        self.timeout_id = gobject.timeout_add(self.check_interval,
+        self.timeout_id = GLib.timeout_add(self.check_interval,
             self.check_status)
 
     def build_menu(self):
         """Create menu
         """
         menu = gtk.Menu()
-        item = gtk.MenuItem("Check nagios status now")
+        item = gtk.MenuItem(label="Check nagios status now")
         menu.append(item)
         item.connect("activate", self.check_now)
         item.show()
-        item = gtk.MenuItem("Relaod config")
+        item = gtk.MenuItem(label="Reload config")
         menu.append(item)
         item.connect("activate", self.reload_config)
         item.show()
-        item = gtk.MenuItem("Quit")
+        item = gtk.MenuItem(label="Quit")
         menu.append(item)
         item.connect("activate", self.quit)
         item.show()
@@ -97,8 +111,10 @@ class NagiosApplet(object):
     def check_err_notifies(self, new_nagios_status):
         for host in new_nagios_status:
             for service, state in new_nagios_status[host].items():
-                status = state['status']
-                notify = state['notify']
+                status = re.sub(r"[\\\\']+", '', str(state['status']))
+                state['status'] = status
+                notify = re.sub(r"[\\\\']+", '', str(state['notify']))
+                state['notify'] = notify
                 try:
                     old_state = self.nagios_status[host].pop(service)
                     old_status = old_state['status']
@@ -136,9 +152,9 @@ class NagiosApplet(object):
         sys.exit(0)
 
     def check_now(self, menu_item):
-        gobject.source_remove(self.timeout_id)
+        GLib.source_remove(self.timeout_id)
         self.check_status()
-        self.timeout_id = gobject.timeout_add(CHECK_INTERVAL,
+        self.timeout_id = GLib.timeout_add(CHECK_INTERVAL,
             self.check_status)
 
     def get_config(self):
@@ -183,20 +199,27 @@ class NagiosApplet(object):
         """ clear all: icon, status etc.
         start from begin,,, restart check now !
         """
-        gobject.source_remove(self.timeout_id)
+        GLib.source_remove(self.timeout_id)
         self.prepare()
 
     def set_icon(self, icon=None):
         if icon:
-            self.ind.set_status(appindicator.STATUS_ATTENTION)
-            self.ind.set_attention_icon(icon)
+            print("set icon to %s" % icon)
+            self.ind.set_status(AppIndicator3.IndicatorStatus.ATTENTION)
+            self.ind.set_attention_icon(ICONS_PATH + '/' + icon + '.png')
+            self.ind.set_icon(ICONS_PATH + '/' + icon + '.png')
         else:
-            self.ind.set_status(appindicator.STATUS_ACTIVE)
+            print("set icon to None")
+            self.ind.set_status(AppIndicator3.IndicatorStatus.ACTIVE)
+            self.ind.set_icon(ICONS_PATH + '/' + NAGIOS_ICON + '.png')
 
     def notify(self, header, body=None, type='info'):
-        msg = pynotify.Notification(header, body)
-        msg.set_timeout(5)
-        msg.show()
+        try:
+            msg = notify2.Notification(header, body)
+            msg.set_timeout(5)
+            msg.show()
+        except:
+            print("Sending desktop notification failed: %s %s" % (header, body))
 
 if __name__ == "__main__":
     applet = NagiosApplet()
