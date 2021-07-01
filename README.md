@@ -10,11 +10,17 @@ This applet automatically check your nagios server and notify about all problems
 create config file `.nagios_checker` in your `$HOME` directory with content:
 
 `[DEFAULT]`
+
 `url = <url_to_nagios_server>` # http://server.com/nagios3/
+
 `user = <username>` # nagiosadmin, nagios user
+
 `passwd = <password>` # nagiosadmin password
+
 `renotify = false` # notify every check (true) or once (false), (optional)
+
 `show_disabled = false` # notify (true) if notification is disabled for service or not (false), (optional)
+
 `interval = 300` # check interval in second (default 300sec = 5min),  (optional)
 
 and run:
